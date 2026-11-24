@@ -1,7 +1,6 @@
 #include QMK_KEYBOARD_H
 #include "ergohaven.h"
 #include "src/eh_pointing.h"
-#include "hid.h"
 
 // clang-format off
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
@@ -62,6 +61,11 @@ const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][NUM_DIRECTIONS] = {
 };
 #endif
 
+#include "hid.h"
+#ifdef MOUSEKEY_ENABLE
+#    include "mousekey.h"
+#endif
+
 extern pointing_mode_t pointing_mode;
 
 #define POINTING_MODE_ZOOM POINTING_MODE_USR1
@@ -83,15 +87,13 @@ static uint16_t zoom_last_tick_timer = 0;
 static int16_t  zoom_accum           = 0;
 static uint16_t layer15_poll_timer   = 0;
 
-static void zoom_release_ctrl(bool wait_sof) {
+static void zoom_release_ctrl(void) {
     zoom_accum = 0;
     if (zoom_ctrl_active) {
         del_weak_mods(MOD_BIT(KC_LCTL));
         send_keyboard_report();
         zoom_ctrl_active = false;
-        if (wait_sof) {
-            wait_ms(2);
-        }
+        wait_ms(2);
     }
 }
 
@@ -154,9 +156,9 @@ static void sync_pointing_mode_for_state(layer_state_t effective_state) {
 
     if (prev_mode != next_mode) {
         if (prev_mode == POINTING_MODE_ZOOM && next_mode != POINTING_MODE_ZOOM) {
-            zoom_release_ctrl(false);
+            zoom_release_ctrl();
         }
-        if (prev_mode != POINTING_MODE_NORMAL && next_mode != POINTING_MODE_NORMAL) {
+        if (prev_mode != POINTING_MODE_NORMAL) {
             pointing_mode          = POINTING_MODE_NORMAL;
             report_mouse_t zero_mr = {0};
             (void)pointing_device_task_user(zero_mr);
@@ -196,7 +198,7 @@ layer_state_t layer_state_set_user(layer_state_t state) {
 
 void housekeeping_task_user(void) {
     if (zoom_ctrl_active && timer_elapsed(zoom_last_tick_timer) >= ZOOM_IDLE_RELEASE_MS) {
-        zoom_release_ctrl(false);
+        zoom_release_ctrl();
     }
     if (timer_elapsed(layer15_poll_timer) >= LAYER15_POLL_MS) {
         layer15_poll_timer = timer_read();
@@ -207,14 +209,14 @@ void housekeeping_task_user(void) {
 bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
     (void)keycode;
     if (zoom_ctrl_active && record->event.pressed) {
-        zoom_release_ctrl(true);
+        zoom_release_ctrl();
     }
     return true;
 }
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (zoom_ctrl_active && record->event.pressed) {
-        zoom_release_ctrl(true);
+        zoom_release_ctrl();
     }
 
     if (IS_QK_TO(keycode)) {
@@ -275,6 +277,17 @@ report_mouse_t pointing_device_task_kb(report_mouse_t mouse_report) {
     report_mouse_t mrpt = pointing_device_task_user(mouse_report);
 
     if (active_effective_mode == POINTING_MODE_ZOOM) {
+        uint8_t held_buttons = mrpt.buttons;
+#ifdef MOUSEKEY_ENABLE
+        held_buttons |= mousekey_get_report().buttons;
+#endif
+        if (held_buttons != 0) {
+            zoom_release_ctrl();
+            mrpt.h = 0;
+            mrpt.v = 0;
+            return mrpt;
+        }
+
         int16_t raw_v = mrpt.v;
         if (get_invert_scroll()) {
             raw_v = -raw_v;
