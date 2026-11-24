@@ -1,4 +1,4 @@
-name: Build Ergohaven HPD v2 Custom Firmware
+name: Build Ergohaven HPD v2 Custom Firmware (v4 Std + Smooth Scroll)
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Compile ergohaven/hpd/rev2:v2_enc_ball (4.2.0)
+    name: Compile ergohaven/hpd/rev2:v2_enc_ball (4.2.0 v4 std + smooth_scroll)
     runs-on: ubuntu-latest
     container: ghcr.io/qmk/qmk_cli:latest
     steps:
@@ -25,30 +25,44 @@ jobs:
           cd qmk_fw
           echo "Upstream tag commit: $(git rev-parse HEAD)"
           git submodule update --init --recursive lib/chibios lib/chibios-contrib lib/pico-sdk lib/printf lib/lufa
+          mkdir -p ../out
 
-      - name: Apply targeted HPD v2 enc/ball patches and verify diff -u
+      - name: Build Variant 2A - v4 Standard (without Hi-Res Smooth Scroll) under -Werror
         shell: bash
         run: |
           set -euo pipefail
           cp custom/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h qmk_fw/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h
           cp custom/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/keymap.c qmk_fw/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/keymap.c
+          cp custom/smooth_scroll_overlay/keyboards/ergohaven/src/eh_pointing.c qmk_fw/keyboards/ergohaven/src/eh_pointing.c
           cd qmk_fw
           git status -s
           git diff -u
+          qmk compile -kb ergohaven/hpd/rev2 -km v2_enc_ball -e ALLOW_WARNINGS=no
+          mv ergohaven_hpd_rev2_v2_enc_ball.uf2 ../out/4.2.0_hpd_v2_enc_ball_v4_std.uf2
+          sha256sum ../out/4.2.0_hpd_v2_enc_ball_v4_std.uf2
 
-      - name: Compile under -Werror
+      - name: Build Variant 2B - v4 Smooth Scroll (120x USB Hi-Res Wheel + AC Pan) under -Werror
         shell: bash
         run: |
           set -euo pipefail
+          cp custom/smooth_scroll_overlay/tmk_core/protocol/usb_descriptor.c qmk_fw/tmk_core/protocol/usb_descriptor.c
+          cp custom/smooth_scroll_overlay/tmk_core/protocol/chibios/usb_main.c qmk_fw/tmk_core/protocol/chibios/usb_main.c
+          cp custom/smooth_scroll_overlay/quantum/mousekey.c qmk_fw/quantum/mousekey.c
+          cp custom/smooth_scroll_overlay/keyboards/ergohaven/src/eh_pointing.c qmk_fw/keyboards/ergohaven/src/eh_pointing.c
+          cp custom/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h qmk_fw/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h
+          printf '\n#define EH_SMOOTH_SCROLL_V4\n' >> qmk_fw/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h
           cd qmk_fw
+          qmk clean
+          git status -s
+          git diff -u
           qmk compile -kb ergohaven/hpd/rev2 -km v2_enc_ball -e ALLOW_WARNINGS=no
-          ls -lh *.uf2
-          mv ergohaven_hpd_rev2_v2_enc_ball.uf2 4.2.0_hpd_v2_enc_ball_layer_scroll.uf2
-          sha256sum 4.2.0_hpd_v2_enc_ball_layer_scroll.uf2
+          mv ergohaven_hpd_rev2_v2_enc_ball.uf2 ../out/4.2.0_hpd_v2_enc_ball_v4_smooth_scroll.uf2
+          sha256sum ../out/4.2.0_hpd_v2_enc_ball_v4_std.uf2 ../out/4.2.0_hpd_v2_enc_ball_v4_smooth_scroll.uf2
+          ls -lh ../out/*.uf2
 
-      - name: Upload UF2 artifact
+      - name: Upload UF2 artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: hpd_v2_enc_ball_layer_scroll_uf2
-          path: qmk_fw/4.2.0_hpd_v2_enc_ball_layer_scroll.uf2
+          name: hpd_v2_v4_uf2_bundle
+          path: out/*.uf2
           if-no-files-found: error
