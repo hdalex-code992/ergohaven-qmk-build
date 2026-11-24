@@ -24,7 +24,7 @@ jobs:
           git clone --branch 4.2.0 --depth 1 https://github.com/ergohaven/vial-qmk.git qmk_fw
           cd qmk_fw
           echo "Upstream tag commit: $(git rev-parse HEAD)"
-          git submodule update --init --recursive lib/chibios lib/chibios-contrib lib/pico-sdk lib/printf
+          git submodule update --init --recursive lib/chibios lib/chibios-contrib lib/pico-sdk lib/printf lib/lufa
 
       - name: Apply targeted HPD v2 enc/ball patches and verify diff -u
         shell: bash
