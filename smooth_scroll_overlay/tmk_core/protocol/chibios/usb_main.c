@@ -256,6 +256,9 @@ static void usb_event_cb(USBDriver *usbp, usbevent_t event) {
 #ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
 static uint8_t _Alignas(4) get_feature_buf[2];
 
+bool usb_hires_scroll_v_enabled(void);
+bool usb_hires_scroll_h_enabled(void);
+
 bool usb_hires_scroll_v_enabled(void) {
     return (hires_scroll_feature_bits & 0x03) != 0;
 }

@@ -601,14 +601,14 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
 
     if (is_rt2) {
         if (record->event.pressed) {
-            if (lt2_phys_held) {
+            uint8_t cur_layer = get_highest_layer(layer_state | default_layer_state);
+            if (lt2_phys_held && cur_layer != 2) {
                 lt2_used_with_other_key = true;
                 rt2_chord_mo5           = true;
                 rt2_thumb_armed         = true;
                 layer_on(5);
                 return false;
             }
-            uint8_t cur_layer = get_highest_layer(layer_state | default_layer_state);
             if (cur_layer != 2) {
                 uint16_t raw_kc = keymap_key_to_keycode(layer_switch_get_layer(record->event.key), record->event.key);
                 if (raw_kc == TT(3)) {
@@ -732,7 +732,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 f18_fired  = false;
             } else {
                 if (f18_active && !f18_fired) {
-                    tap_code16(CA(KC_TAB));
+                    tap_code16(LCA(KC_TAB));
                 }
                 f18_active = false;
             }
@@ -1002,7 +1002,7 @@ report_mouse_t pointing_device_task_kb(report_mouse_t mouse_report) {
                     tap_code16(C(KC_TAB));
                 } else {
                     tab_cruiser_accum_x = tab_cruiser_deadzone_x + TAB_CRUISER_DEADZONE_COUNTS;
-                    tap_code16(CS(KC_TAB));
+                    tap_code16(C(S(KC_TAB)));
                 }
                 tab_cruiser_deadzone_x = 0;
             }
@@ -1019,7 +1019,7 @@ report_mouse_t pointing_device_task_kb(report_mouse_t mouse_report) {
             tap_code16(C(KC_TAB));
         } else if (tab_cruiser_accum_x <= -TAB_CRUISER_STEP_COUNTS) {
             tab_cruiser_accum_x = tab_cruiser_accum_x % TAB_CRUISER_STEP_COUNTS;
-            tap_code16(CS(KC_TAB));
+            tap_code16(C(S(KC_TAB)));
         }
         return mrpt;
     }
