@@ -1,0 +1,54 @@
+name: Build Ergohaven HPD v2 Custom Firmware
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Compile ergohaven/hpd/rev2:v2_enc_ball (4.2.0)
+    runs-on: ubuntu-latest
+    container: ghcr.io/qmk/qmk_cli:latest
+    steps:
+      - name: Checkout custom patch repo
+        uses: actions/checkout@v4
+        with:
+          path: custom
+
+      - name: Clone exact upstream ergohaven/vial-qmk@4.2.0 and required submodules
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory '*'
+          git clone --branch 4.2.0 --depth 1 https://github.com/ergohaven/vial-qmk.git qmk_fw
+          cd qmk_fw
+          echo "Upstream tag commit: $(git rev-parse HEAD)"
+          git submodule update --init --recursive lib/chibios lib/chibios-contrib lib/pico-sdk lib/printf
+
+      - name: Apply targeted HPD v2 enc/ball patches and verify diff -u
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp custom/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h qmk_fw/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h
+          cp custom/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/keymap.c qmk_fw/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/keymap.c
+          cd qmk_fw
+          git status -s
+          git diff -u
+
+      - name: Compile under -Werror
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd qmk_fw
+          qmk compile -kb ergohaven/hpd/rev2 -km v2_enc_ball -e ALLOW_WARNINGS=no
+          ls -lh *.uf2
+          mv ergohaven_hpd_rev2_v2_enc_ball.uf2 4.2.0_hpd_v2_enc_ball_layer_scroll.uf2
+          sha256sum 4.2.0_hpd_v2_enc_ball_layer_scroll.uf2
+
+      - name: Upload UF2 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hpd_v2_enc_ball_layer_scroll_uf2
+          path: qmk_fw/4.2.0_hpd_v2_enc_ball_layer_scroll.uf2
+          if-no-files-found: error
