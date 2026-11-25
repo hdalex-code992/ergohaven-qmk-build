@@ -168,15 +168,9 @@ void usb_event_queue_task(void) {
                 usb_device_state_set_configuration(USB_DRIVER.configuration != 0, USB_DRIVER.configuration);
                 break;
             case USB_EVENT_UNCONFIGURED:
-#ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
-                hires_scroll_feature_bits = 0;
-#endif
                 usb_device_state_set_configuration(false, 0);
                 break;
             case USB_EVENT_RESET:
-#ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
-                hires_scroll_feature_bits = 0;
-#endif
                 usb_device_state_set_reset();
                 usb_device_state_set_protocol(USB_PROTOCOL_REPORT);
                 break;
@@ -207,11 +201,14 @@ static void usb_event_cb(USBDriver *usbp, usbevent_t event) {
             }
             usb_event_queue_enqueue(USB_EVENT_CONFIGURED);
             return;
-        case USB_EVENT_SUSPEND:
-            /* Falls into.*/
         case USB_EVENT_UNCONFIGURED:
             /* Falls into.*/
         case USB_EVENT_RESET:
+#ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
+            hires_scroll_feature_bits = 0;
+#endif
+            /* Falls into.*/
+        case USB_EVENT_SUSPEND:
             usb_event_queue_enqueue(event);
             chSysLockFromISR();
             for (int i = 0; i < USB_ENDPOINT_IN_COUNT; i++) {
@@ -256,15 +253,15 @@ static void usb_event_cb(USBDriver *usbp, usbevent_t event) {
 #ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
 static uint8_t _Alignas(4) get_feature_buf[2];
 
-bool usb_hires_scroll_v_enabled(void);
-bool usb_hires_scroll_h_enabled(void);
+uint8_t usb_hires_scroll_v_mult(void);
+uint8_t usb_hires_scroll_h_mult(void);
 
-bool usb_hires_scroll_v_enabled(void) {
-    return (hires_scroll_feature_bits & 0x03) != 0;
+uint8_t usb_hires_scroll_v_mult(void) {
+    return (uint8_t)((hires_scroll_feature_bits & 0x0F) + 1);
 }
 
-bool usb_hires_scroll_h_enabled(void) {
-    return ((hires_scroll_feature_bits >> 2) & 0x03) != 0;
+uint8_t usb_hires_scroll_h_mult(void) {
+    return (uint8_t)(((hires_scroll_feature_bits >> 4) & 0x0F) + 1);
 }
 #endif
 
@@ -277,13 +274,13 @@ static void set_led_transfer_cb(USBDriver *usbp) {
     if (setup->wValue.hbyte == 0x03) {
 #    ifdef MOUSE_SHARED_EP
         if (setup->wLength >= 2 && set_report_buf[0] == REPORT_ID_MOUSE) {
-            hires_scroll_feature_bits = set_report_buf[1] & 0x0F;
-        } else if (setup->wIndex == SHARED_INTERFACE && setup->wValue.lbyte == REPORT_ID_MOUSE && setup->wLength == 1) {
-            hires_scroll_feature_bits = set_report_buf[0] & 0x0F;
+            hires_scroll_feature_bits = set_report_buf[1];
+        } else if (setup->wIndex == SHARED_INTERFACE && (setup->wValue.lbyte == REPORT_ID_MOUSE || setup->wValue.lbyte == 0) && setup->wLength == 1) {
+            hires_scroll_feature_bits = set_report_buf[0];
         }
 #    else
         if (setup->wLength >= 1) {
-            hires_scroll_feature_bits = set_report_buf[0] & 0x0F;
+            hires_scroll_feature_bits = set_report_buf[0];
         }
 #    endif
         return;
@@ -314,7 +311,7 @@ static bool usb_requests_hook_cb(USBDriver *usbp) {
 #ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
                         if (setup->wValue.hbyte == 0x03) {
 #    ifdef MOUSE_SHARED_EP
-                            if (setup->wIndex == SHARED_INTERFACE && setup->wValue.lbyte == REPORT_ID_MOUSE) {
+                            if (setup->wIndex == SHARED_INTERFACE && (setup->wValue.lbyte == REPORT_ID_MOUSE || setup->wValue.lbyte == 0)) {
                                 get_feature_buf[0] = REPORT_ID_MOUSE;
                                 get_feature_buf[1] = hires_scroll_feature_bits;
                                 usbSetupTransfer(usbp, get_feature_buf, setup->wLength < 2 ? setup->wLength : 2, NULL);

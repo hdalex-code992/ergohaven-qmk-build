@@ -166,21 +166,19 @@ const USB_Descriptor_HIDReport_Datatype_t PROGMEM SharedReport[] = {
             HID_RI_INPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_RELATIVE),
 
 #    ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
-            // Vertical Wheel Logical Collection (Resolution Multiplier bits 0..1)
+            // Vertical Wheel Logical Collection (4-bit Resolution Multiplier bits 0..3: 1..16x)
             HID_RI_COLLECTION(8, 0x02),    // Logical
                 HID_RI_USAGE_PAGE(8, 0x01),// Generic Desktop
                 HID_RI_USAGE(8, 0x48),     // Resolution Multiplier
                 HID_RI_LOGICAL_MINIMUM(8, 0x00),
-                HID_RI_LOGICAL_MAXIMUM(8, 0x01),
-                HID_RI_PHYSICAL_MINIMUM(8, 1),
-                HID_RI_PHYSICAL_MAXIMUM(8, POINTING_DEVICE_HIRES_SCROLL_MULTIPLIER),
-                HID_RI_UNIT_EXPONENT(8, POINTING_DEVICE_HIRES_SCROLL_EXPONENT),
+                HID_RI_LOGICAL_MAXIMUM(8, 0x0F),
+                HID_RI_PHYSICAL_MINIMUM(8, 0x01),
+                HID_RI_PHYSICAL_MAXIMUM(8, 0x10),
                 HID_RI_REPORT_COUNT(8, 0x01),
-                HID_RI_REPORT_SIZE(8, 0x02),
+                HID_RI_REPORT_SIZE(8, 0x04),
                 HID_RI_FEATURE(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
                 HID_RI_PHYSICAL_MINIMUM(8, 0x00),
                 HID_RI_PHYSICAL_MAXIMUM(8, 0x00),
-                HID_RI_UNIT_EXPONENT(8, 0x00),
                 HID_RI_USAGE(8, 0x38),     // Wheel
 #        ifndef WHEEL_EXTENDED_REPORT
                 HID_RI_LOGICAL_MINIMUM(8, -127),
@@ -196,24 +194,19 @@ const USB_Descriptor_HIDReport_Datatype_t PROGMEM SharedReport[] = {
                 HID_RI_INPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_RELATIVE),
             HID_RI_END_COLLECTION(0),
 
-            // Horizontal Pan Logical Collection (Resolution Multiplier bits 2..3 + 4-bit pad)
+            // Horizontal Pan Logical Collection (4-bit Resolution Multiplier bits 4..7: 1..16x)
             HID_RI_COLLECTION(8, 0x02),    // Logical
                 HID_RI_USAGE_PAGE(8, 0x01),// Generic Desktop
                 HID_RI_USAGE(8, 0x48),     // Resolution Multiplier
                 HID_RI_LOGICAL_MINIMUM(8, 0x00),
-                HID_RI_LOGICAL_MAXIMUM(8, 0x01),
-                HID_RI_PHYSICAL_MINIMUM(8, 1),
-                HID_RI_PHYSICAL_MAXIMUM(8, POINTING_DEVICE_HIRES_SCROLL_MULTIPLIER),
-                HID_RI_UNIT_EXPONENT(8, POINTING_DEVICE_HIRES_SCROLL_EXPONENT),
+                HID_RI_LOGICAL_MAXIMUM(8, 0x0F),
+                HID_RI_PHYSICAL_MINIMUM(8, 0x01),
+                HID_RI_PHYSICAL_MAXIMUM(8, 0x10),
                 HID_RI_REPORT_COUNT(8, 0x01),
-                HID_RI_REPORT_SIZE(8, 0x02),
+                HID_RI_REPORT_SIZE(8, 0x04),
                 HID_RI_FEATURE(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
                 HID_RI_PHYSICAL_MINIMUM(8, 0x00),
                 HID_RI_PHYSICAL_MAXIMUM(8, 0x00),
-                HID_RI_UNIT_EXPONENT(8, 0x00),
-                HID_RI_REPORT_COUNT(8, 0x01),
-                HID_RI_REPORT_SIZE(8, 0x04),
-                HID_RI_FEATURE(8, HID_IOF_CONSTANT),
                 HID_RI_USAGE_PAGE(8, 0x0C),// Consumer
                 HID_RI_USAGE(16, 0x0238),  // AC Pan
 #        ifndef WHEEL_EXTENDED_REPORT

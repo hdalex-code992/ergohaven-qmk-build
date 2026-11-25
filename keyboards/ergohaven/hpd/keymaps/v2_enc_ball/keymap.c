@@ -71,15 +71,18 @@ const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][NUM_DIRECTIONS] = {
 #endif
 
 #ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
-extern bool usb_hires_scroll_v_enabled(void);
+extern uint8_t usb_hires_scroll_v_mult(void);
 #endif
 
+extern void            last_matrix_activity_trigger(void);
 extern pointing_mode_t pointing_mode;
 
 #define POINTING_MODE_ZOOM        POINTING_MODE_USR1
 #define POINTING_MODE_SHUTTLE     POINTING_MODE_USR2
 #define POINTING_MODE_TAB_CRUISER POINTING_MODE_USR3
 
+#define THUMB_SOLO_LATCH_MAX_MS     600
+#define LT2_BALL_SPRING_COUNTS      30U
 #define ZOOM_TICKS_PER_STEP         3
 #define ZOOM_IDLE_RELEASE_MS        120
 #define SHUTTLE_IDLE_RESTORE_MS     150
@@ -137,6 +140,7 @@ static bool            lt2_lead_prev_sticky    = false;
 static pointing_mode_t lt2_lead_prev_sticky_m  = POINTING_MODE_NORMAL;
 static uint8_t         lt2_lead_prev_sticky_l  = 0;
 static uint16_t        lt2_press_timer         = 0;
+static uint32_t        lt2_ball_travel         = 0;
 
 static bool          rt2_thumb_armed         = false;
 static bool          rt2_was_tt3             = false;
@@ -588,13 +592,18 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
     /* Dual-thumb chords (LT2 <-> RT2) & instant spring-latch TT(1) / TT(3) */
     if (is_lt2) {
         if (record->event.pressed) {
+            last_matrix_activity_trigger();
+#ifdef RGBLIGHT_ENABLE
+            preprocess_rgblight();
+#endif
+            lt2_ball_travel = 0;
             if (rt2_thumb_armed && !rt2_chord_mo5) {
                 rt2_used_with_other_key = true;
                 lt2_chord_mo4           = true;
                 lt2_phys_held           = true;
                 lt2_was_tt1             = false;
                 lt2_lead_clean          = false;
-                if (rt2_lead_clean && (rt2_was_tt3 || timer_elapsed(rt2_press_timer) < 350)) {
+                if (rt2_lead_clean && (rt2_was_tt3 || timer_elapsed(rt2_press_timer) < THUMB_SOLO_LATCH_MAX_MS)) {
                     rt2_lead_clean        = false;
                     rt2_was_tt3           = false;
                     layer_state_t base_st = (get_highest_layer(rt2_lead_prev_state | default_layer_state) < 4) ? rt2_lead_prev_state : 0;
@@ -654,7 +663,7 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
                 lt2_phys_held = false;
                 if (lt2_was_tt1) {
                     lt2_was_tt1 = false;
-                    if (lt2_used_with_other_key || timer_elapsed(lt2_press_timer) >= get_tapping_term(TT(1), record)) {
+                    if (lt2_used_with_other_key || timer_elapsed(lt2_press_timer) >= THUMB_SOLO_LATCH_MAX_MS) {
                         layer_off(1);
                     }
                 }
@@ -667,12 +676,16 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
         if (record->event.pressed) {
             uint8_t cur_layer = get_highest_layer(layer_state | default_layer_state);
             if (lt2_phys_held && !lt2_chord_mo4 && cur_layer != 2) {
+                last_matrix_activity_trigger();
+#ifdef RGBLIGHT_ENABLE
+                preprocess_rgblight();
+#endif
                 lt2_used_with_other_key = true;
                 rt2_chord_mo5           = true;
                 rt2_thumb_armed         = true;
                 rt2_was_tt3             = false;
                 rt2_lead_clean          = false;
-                if (lt2_lead_clean && (lt2_was_tt1 || timer_elapsed(lt2_press_timer) < 350)) {
+                if (lt2_lead_clean && (lt2_was_tt1 || timer_elapsed(lt2_press_timer) < THUMB_SOLO_LATCH_MAX_MS)) {
                     lt2_lead_clean         = false;
                     lt2_was_tt1            = false;
                     sticky_override_active = lt2_lead_prev_sticky;
@@ -691,6 +704,10 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
                 layer_state_t prev_st = layer_state;
                 uint16_t      raw_kc  = keymap_key_to_keycode(layer_switch_get_layer(record->event.key), record->event.key);
                 if (raw_kc == TT(3)) {
+                    last_matrix_activity_trigger();
+#ifdef RGBLIGHT_ENABLE
+                    preprocess_rgblight();
+#endif
                     rt2_thumb_armed         = true;
                     rt2_was_tt3             = !layer_state_is(3);
                     rt2_used_with_other_key = false;
@@ -700,6 +717,10 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
                     layer_on(3);
                     return false;
                 } else if (raw_kc == TO(3)) {
+                    last_matrix_activity_trigger();
+#ifdef RGBLIGHT_ENABLE
+                    preprocess_rgblight();
+#endif
                     rt2_thumb_armed         = true;
                     rt2_was_tt3             = false;
                     rt2_used_with_other_key = false;
@@ -715,6 +736,10 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
                     sync_pointing_mode_for_state(layer_state | default_layer_state);
                     return false;
                 } else if (raw_kc == KC_NO) {
+                    last_matrix_activity_trigger();
+#ifdef RGBLIGHT_ENABLE
+                    preprocess_rgblight();
+#endif
                     rt2_thumb_armed = true;
                     rt2_was_tt3     = false;
                     rt2_lead_clean  = false;
@@ -733,7 +758,7 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
                 rt2_thumb_armed = false;
                 if (rt2_was_tt3) {
                     rt2_was_tt3 = false;
-                    if (rt2_used_with_other_key || timer_elapsed(rt2_press_timer) >= get_tapping_term(TT(3), record)) {
+                    if (rt2_used_with_other_key || timer_elapsed(rt2_press_timer) >= THUMB_SOLO_LATCH_MAX_MS) {
                         layer_off(3);
                     }
                 }
@@ -943,6 +968,13 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 }
 
 report_mouse_t pointing_device_task_kb(report_mouse_t mouse_report) {
+    if (lt2_phys_held && lt2_was_tt1 && !lt2_used_with_other_key) {
+        lt2_ball_travel += (uint32_t)abs((int32_t)mouse_report.x) + (uint32_t)abs((int32_t)mouse_report.y);
+        if (mouse_report.buttons != 0 || lt2_ball_travel >= LT2_BALL_SPRING_COUNTS) {
+            lt2_used_with_other_key = true;
+        }
+    }
+
     report_mouse_t mrpt = pointing_device_task_user(mouse_report);
 
     if (active_effective_mode == POINTING_MODE_ZOOM) {
@@ -986,7 +1018,7 @@ report_mouse_t pointing_device_task_kb(report_mouse_t mouse_report) {
                 }
                 zoom_last_tick_timer = timer_read();
 #ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
-                mrpt.v = (mouse_hv_report_t)(step * (usb_hires_scroll_v_enabled() ? 120 : 1));
+                mrpt.v = (mouse_hv_report_t)((int16_t)step * (int16_t)usb_hires_scroll_v_mult());
 #else
                 mrpt.v = step;
 #endif

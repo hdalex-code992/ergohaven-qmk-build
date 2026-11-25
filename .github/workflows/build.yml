@@ -41,7 +41,7 @@ jobs:
           mv ergohaven_hpd_rev2_v2_enc_ball.uf2 ../out/4.2.0_hpd_v2_enc_ball_v4_std.uf2
           sha256sum ../out/4.2.0_hpd_v2_enc_ball_v4_std.uf2
 
-      - name: Build Variant 2B - v4 Smooth Scroll (120x USB Hi-Res Wheel + AC Pan) under -Werror
+      - name: Build Variant 2B - v4 Smooth Scroll (16x 4-Bit USB Hi-Res Wheel + AC Pan) under -Werror
         shell: bash
         run: |
           set -euo pipefail
@@ -50,7 +50,7 @@ jobs:
           cp custom/smooth_scroll_overlay/quantum/mousekey.c qmk_fw/quantum/mousekey.c
           cp custom/smooth_scroll_overlay/keyboards/ergohaven/src/eh_pointing.c qmk_fw/keyboards/ergohaven/src/eh_pointing.c
           cp custom/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h qmk_fw/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h
-          printf '\n#define POINTING_DEVICE_HIRES_SCROLL_ENABLE\n' >> qmk_fw/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h
+          printf '\n#define POINTING_DEVICE_HIRES_SCROLL_ENABLE\n#define POINTING_DEVICE_HIRES_SCROLL_MULTIPLIER 16\n' >> qmk_fw/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h
           cd qmk_fw
           qmk clean
           git status -s

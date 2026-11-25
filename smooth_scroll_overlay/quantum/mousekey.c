@@ -632,8 +632,8 @@ void mousekey_off(uint8_t code) {
 #endif /* #ifndef MK_3_SPEED */
 
 #ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
-extern bool usb_hires_scroll_v_enabled(void);
-extern bool usb_hires_scroll_h_enabled(void);
+extern uint8_t usb_hires_scroll_v_mult(void);
+extern uint8_t usb_hires_scroll_h_mult(void);
 #endif
 
 void mousekey_send(void) {
@@ -643,12 +643,12 @@ void mousekey_send(void) {
     if (mouse_report.v || mouse_report.h) last_timer_w = time;
 #ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
     report_mouse_t out_report = mouse_report;
-    if (out_report.v != 0 && usb_hires_scroll_v_enabled()) {
-        int32_t sv   = (int32_t)out_report.v * 120;
+    if (out_report.v != 0) {
+        int32_t sv   = (int32_t)out_report.v * (int32_t)usb_hires_scroll_v_mult();
         out_report.v = (mouse_hv_report_t)(sv > MOUSE_REPORT_HV_MAX ? MOUSE_REPORT_HV_MAX : (sv < MOUSE_REPORT_HV_MIN ? MOUSE_REPORT_HV_MIN : sv));
     }
-    if (out_report.h != 0 && usb_hires_scroll_h_enabled()) {
-        int32_t sh   = (int32_t)out_report.h * 120;
+    if (out_report.h != 0) {
+        int32_t sh   = (int32_t)out_report.h * (int32_t)usb_hires_scroll_h_mult();
         out_report.h = (mouse_hv_report_t)(sh > MOUSE_REPORT_HV_MAX ? MOUSE_REPORT_HV_MAX : (sh < MOUSE_REPORT_HV_MIN ? MOUSE_REPORT_HV_MIN : sh));
     }
     host_mouse_send(&out_report);

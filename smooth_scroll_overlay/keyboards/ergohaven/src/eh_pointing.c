@@ -16,8 +16,8 @@
 #include <string.h>
 
 #ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
-extern bool usb_hires_scroll_v_enabled(void);
-extern bool usb_hires_scroll_h_enabled(void);
+extern uint8_t usb_hires_scroll_v_mult(void);
+extern uint8_t usb_hires_scroll_h_mult(void);
 #endif
 
 static kb_settings_pointing_t kb_settings_pointing;
@@ -1510,8 +1510,8 @@ report_mouse_t pointing_device_task_user(report_mouse_t mrpt) {
                 }
             }
 
-            int32_t mult_h = usb_hires_scroll_h_enabled() ? 120 : 1;
-            int32_t mult_v = usb_hires_scroll_v_enabled() ? 120 : 1;
+            int32_t mult_h = (int32_t)usb_hires_scroll_h_mult();
+            int32_t mult_v = (int32_t)usb_hires_scroll_v_mult();
 
             if (raw_x != 0 && ((raw_x > 0 && accumulated_h < 0) || (raw_x < 0 && accumulated_h > 0))) {
                 accumulated_h = 0;
