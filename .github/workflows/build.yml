@@ -50,7 +50,7 @@ jobs:
           cp custom/smooth_scroll_overlay/quantum/mousekey.c qmk_fw/quantum/mousekey.c
           cp custom/smooth_scroll_overlay/keyboards/ergohaven/src/eh_pointing.c qmk_fw/keyboards/ergohaven/src/eh_pointing.c
           cp custom/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h qmk_fw/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h
-          printf '\n#define EH_SMOOTH_SCROLL_V4\n' >> qmk_fw/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h
+          printf '\n#define POINTING_DEVICE_HIRES_SCROLL_ENABLE\n' >> qmk_fw/keyboards/ergohaven/hpd/keymaps/v2_enc_ball/config.h
           cd qmk_fw
           qmk clean
           git status -s
