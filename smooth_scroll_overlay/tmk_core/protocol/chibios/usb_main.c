@@ -273,7 +273,9 @@ static void set_led_transfer_cb(USBDriver *usbp) {
 #ifdef POINTING_DEVICE_HIRES_SCROLL_ENABLE
     if (setup->wValue.hbyte == 0x03) {
 #    ifdef MOUSE_SHARED_EP
-        if (setup->wLength >= 2 && set_report_buf[0] == REPORT_ID_MOUSE) {
+        if (setup->wLength >= 2 &&
+            (set_report_buf[0] == REPORT_ID_MOUSE ||
+             (setup->wIndex == SHARED_INTERFACE && setup->wValue.lbyte == REPORT_ID_MOUSE))) {
             hires_scroll_feature_bits = set_report_buf[1];
         } else if (setup->wIndex == SHARED_INTERFACE && (setup->wValue.lbyte == REPORT_ID_MOUSE || setup->wValue.lbyte == 0) && setup->wLength == 1) {
             hires_scroll_feature_bits = set_report_buf[0];

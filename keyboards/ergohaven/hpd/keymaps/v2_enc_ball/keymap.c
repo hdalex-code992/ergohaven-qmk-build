@@ -82,6 +82,7 @@ extern pointing_mode_t pointing_mode;
 #define POINTING_MODE_TAB_CRUISER POINTING_MODE_USR3
 
 #define THUMB_SOLO_LATCH_MAX_MS     600
+#define LT2_BALL_SETTLE_MS          15
 #define LT2_BALL_SPRING_COUNTS      30U
 #define ZOOM_TICKS_PER_STEP         3
 #define ZOOM_IDLE_RELEASE_MS        120
@@ -451,23 +452,6 @@ void housekeeping_task_user(void) {
         sync_pointing_mode_for_state(layer_state | default_layer_state);
     }
 
-    if (!is_keyboard_master()) {
-        return;
-    }
-
-    if (f18_active && !f18_fired && timer_elapsed(f18_timer) >= F18_LOCK_HOLD_MS) {
-        f18_fired          = true;
-        uint8_t saved_mods = get_mods();
-        if (saved_mods) {
-            del_mods(saved_mods);
-        }
-        clear_weak_mods();
-        tap_code16(G(KC_L));
-        if (saved_mods) {
-            add_mods(saved_mods);
-        }
-    }
-
     uint8_t cur_entropy_bri = get_led_rgb_brightness();
     bool    colors_changed  = false;
     if (cur_entropy_bri != last_seen_entropy_bri) {
@@ -484,6 +468,38 @@ void housekeeping_task_user(void) {
                 colors_changed = true;
                 break;
             }
+        }
+    }
+
+    if (!is_keyboard_master()) {
+        if (colors_changed) {
+            for (uint8_t i = 0; i < EH_RGB_LAYER_COUNT; ++i) {
+                uint8_t cidx = get_layer_rgb_color(i);
+                if (cidx >= EH_RGB_PALETTE_SIZE) {
+                    cidx = 0;
+                }
+                cached_layer_colors[i]      = cidx;
+                user_rgb_color_t col        = user_rgb_palette[cidx];
+                uint16_t         scaled_val = ((uint16_t)col.val * (uint16_t)cur_entropy_bri) / 255;
+                user_rgb_segments[i][0].hue = col.hue;
+                user_rgb_segments[i][0].sat = col.sat;
+                user_rgb_segments[i][0].val = (uint8_t)scaled_val;
+            }
+            rgblight_set();
+        }
+        return;
+    }
+
+    if (f18_active && !f18_fired && timer_elapsed(f18_timer) >= F18_LOCK_HOLD_MS) {
+        f18_fired          = true;
+        uint8_t saved_mods = get_mods();
+        if (saved_mods) {
+            del_mods(saved_mods);
+        }
+        clear_weak_mods();
+        tap_code16(G(KC_L));
+        if (saved_mods) {
+            add_mods(saved_mods);
         }
     }
 
@@ -969,9 +985,17 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 
 report_mouse_t pointing_device_task_kb(report_mouse_t mouse_report) {
     if (lt2_phys_held && lt2_was_tt1 && !lt2_used_with_other_key) {
-        lt2_ball_travel += (uint32_t)abs((int32_t)mouse_report.x) + (uint32_t)abs((int32_t)mouse_report.y);
-        if (mouse_report.buttons != 0 || lt2_ball_travel >= LT2_BALL_SPRING_COUNTS) {
+        uint8_t cur_btns = mouse_report.buttons;
+#ifdef MOUSEKEY_ENABLE
+        cur_btns |= mousekey_get_report().buttons;
+#endif
+        if (cur_btns != 0) {
             lt2_used_with_other_key = true;
+        } else if (timer_elapsed(lt2_press_timer) >= LT2_BALL_SETTLE_MS) {
+            lt2_ball_travel += (uint32_t)abs((int32_t)mouse_report.x) + (uint32_t)abs((int32_t)mouse_report.y);
+            if (lt2_ball_travel >= LT2_BALL_SPRING_COUNTS) {
+                lt2_used_with_other_key = true;
+            }
         }
     }
 
