@@ -268,7 +268,7 @@ bool usb_hires_scroll_h_enabled(void) {
 }
 #endif
 
-static uint8_t _Alignas(4) set_report_buf[2];
+static uint8_t _Alignas(4) set_report_buf[FIXED_CONTROL_ENDPOINT_SIZE];
 
 static void set_led_transfer_cb(USBDriver *usbp) {
     usb_control_request_t *setup = (usb_control_request_t *)usbp->setup;
@@ -278,6 +278,8 @@ static void set_led_transfer_cb(USBDriver *usbp) {
 #    ifdef MOUSE_SHARED_EP
         if (setup->wLength >= 2 && set_report_buf[0] == REPORT_ID_MOUSE) {
             hires_scroll_feature_bits = set_report_buf[1] & 0x0F;
+        } else if (setup->wIndex == SHARED_INTERFACE && setup->wValue.lbyte == REPORT_ID_MOUSE && setup->wLength == 1) {
+            hires_scroll_feature_bits = set_report_buf[0] & 0x0F;
         }
 #    else
         if (setup->wLength >= 1) {
@@ -288,13 +290,15 @@ static void set_led_transfer_cb(USBDriver *usbp) {
     }
 #endif
 
-    if (setup->wLength == 2) {
-        uint8_t report_id = set_report_buf[0];
-        if ((report_id == REPORT_ID_KEYBOARD) || (report_id == REPORT_ID_NKRO)) {
-            usb_device_state_set_leds(set_report_buf[1]);
+    if (setup->wValue.hbyte == 0x02) {
+        if (setup->wLength == 2) {
+            uint8_t report_id = set_report_buf[0];
+            if ((report_id == REPORT_ID_KEYBOARD) || (report_id == REPORT_ID_NKRO)) {
+                usb_device_state_set_leds(set_report_buf[1]);
+            }
+        } else if (setup->wIndex == KEYBOARD_INTERFACE && setup->wLength == 1) {
+            usb_device_state_set_leds(set_report_buf[0]);
         }
-    } else if (setup->wValue.hbyte != 0x03) {
-        usb_device_state_set_leds(set_report_buf[0]);
     }
 }
 

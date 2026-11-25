@@ -1224,7 +1224,7 @@ report_mouse_t pointing_device_task_user(report_mouse_t mrpt) {
     }
 
     switch (get_orientation()) {
-        int8_t tmp;
+        mouse_xy_report_t tmp;
         case ROT_0:
             break;
         case ROT_270:
@@ -1452,46 +1452,57 @@ report_mouse_t pointing_device_task_user(report_mouse_t mrpt) {
             hires_scroll_last_ms = timer_read32();
 
             if (hires_snap_axis == 0) {
+                if ((raw_x > 0 && hires_snap_cand_x < 0) || (raw_x < 0 && hires_snap_cand_x > 0)) {
+                    hires_snap_cand_x = 0;
+                }
+                if ((raw_y > 0 && hires_snap_cand_y < 0) || (raw_y < 0 && hires_snap_cand_y > 0)) {
+                    hires_snap_cand_y = 0;
+                }
                 hires_snap_cand_x += raw_x;
                 hires_snap_cand_y += raw_y;
-                if (abs(hires_snap_cand_y) >= 3 && abs(hires_snap_cand_y) >= abs(hires_snap_cand_x)) {
+                int32_t ax = abs(hires_snap_cand_x);
+                int32_t ay = abs(hires_snap_cand_y);
+                if (ax + ay < 4) {
+                    return mrpt;
+                }
+                if (ay * 8 >= ax * 5) {
                     hires_snap_axis   = 1;
                     raw_y             = hires_snap_cand_y;
                     raw_x             = 0;
                     hires_snap_cand_x = 0;
                     hires_snap_cand_y = 0;
-                } else if (abs(hires_snap_cand_x) >= 5 && abs(hires_snap_cand_x) * 5 > abs(hires_snap_cand_y) * 8) {
+                } else {
                     hires_snap_axis   = 2;
                     raw_x             = hires_snap_cand_x;
                     raw_y             = 0;
                     hires_snap_cand_x = 0;
                     hires_snap_cand_y = 0;
-                } else {
-                    return mrpt;
                 }
             } else if (hires_snap_axis == 1) {
-                if ((raw_x > 0 && hires_snap_cand_x < 0) || (raw_x < 0 && hires_snap_cand_x > 0)) {
+                if (abs(raw_y) >= abs(raw_x) || (raw_x > 0 && hires_snap_cand_x < 0) || (raw_x < 0 && hires_snap_cand_x > 0)) {
                     hires_snap_cand_x = 0;
+                } else {
+                    hires_snap_cand_x += raw_x;
                 }
-                hires_snap_cand_x += raw_x;
-                if (abs(hires_snap_cand_x) >= 20 && abs(raw_x) > abs(raw_y) * 2) {
+                if (abs(hires_snap_cand_x) >= 18 && abs(raw_x) > abs(raw_y) * 2) {
                     hires_snap_axis   = 2;
-                    raw_x             = hires_snap_cand_x;
                     raw_y             = 0;
                     hires_snap_cand_x = 0;
+                    hires_snap_cand_y = 0;
                     accumulated_v     = 0;
                 } else {
                     raw_x = 0;
                 }
             } else {
-                if ((raw_y > 0 && hires_snap_cand_y < 0) || (raw_y < 0 && hires_snap_cand_y > 0)) {
+                if (abs(raw_x) * 5 > abs(raw_y) * 8 || (raw_y > 0 && hires_snap_cand_y < 0) || (raw_y < 0 && hires_snap_cand_y > 0)) {
                     hires_snap_cand_y = 0;
+                } else {
+                    hires_snap_cand_y += raw_y;
                 }
-                hires_snap_cand_y += raw_y;
-                if (abs(hires_snap_cand_y) >= 14 && abs(raw_y) * 2 > abs(raw_x) * 3) {
+                if (abs(hires_snap_cand_y) >= 14 && abs(raw_y) * 8 >= abs(raw_x) * 5) {
                     hires_snap_axis   = 1;
-                    raw_y             = hires_snap_cand_y;
                     raw_x             = 0;
+                    hires_snap_cand_x = 0;
                     hires_snap_cand_y = 0;
                     accumulated_h     = 0;
                 } else {

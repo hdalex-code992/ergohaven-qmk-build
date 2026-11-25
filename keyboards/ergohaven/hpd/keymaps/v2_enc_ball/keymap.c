@@ -127,17 +127,24 @@ static bool     tab_cruiser_suppress_active  = false;
 static uint16_t layer15_poll_timer = 0;
 
 /* === 2. DUAL-THUMB CHORDS & INSTANT SPRING-LATCH TT(1)/TT(3) === */
-static bool     lt2_phys_held           = false;
-static bool     lt2_was_tt1             = false;
-static bool     lt2_used_with_other_key = false;
-static bool     lt2_chord_mo4           = false;
-static uint16_t lt2_press_timer         = 0;
+static bool            lt2_phys_held           = false;
+static bool            lt2_was_tt1             = false;
+static bool            lt2_used_with_other_key = false;
+static bool            lt2_chord_mo4           = false;
+static bool            lt2_lead_clean          = false;
+static layer_state_t   lt2_lead_prev_state     = 0;
+static bool            lt2_lead_prev_sticky    = false;
+static pointing_mode_t lt2_lead_prev_sticky_m  = POINTING_MODE_NORMAL;
+static uint8_t         lt2_lead_prev_sticky_l  = 0;
+static uint16_t        lt2_press_timer         = 0;
 
-static bool     rt2_thumb_armed         = false;
-static bool     rt2_was_tt3             = false;
-static bool     rt2_used_with_other_key = false;
-static bool     rt2_chord_mo5           = false;
-static uint16_t rt2_press_timer         = 0;
+static bool          rt2_thumb_armed         = false;
+static bool          rt2_was_tt3             = false;
+static bool          rt2_used_with_other_key = false;
+static bool          rt2_chord_mo5           = false;
+static bool          rt2_lead_clean          = false;
+static layer_state_t rt2_lead_prev_state     = 0;
+static uint16_t      rt2_press_timer         = 0;
 
 /* === 3. F18 PANORAMA / WIN+L, LG_WORD, AND RGB / LOCK BLINK === */
 static bool     f18_active = false;
@@ -214,7 +221,7 @@ static bool     lock_blink_active      = false;
 static bool     lock_blink_off_phase   = false;
 static uint16_t lock_blink_timer       = 0;
 
-static void refresh_user_rgb_segments(void) {
+static void refresh_user_rgb_segments_for_state(layer_state_t effective_state, bool flush_now) {
     uint8_t base_bri = get_led_rgb_brightness();
     for (uint8_t i = 0; i < EH_RGB_LAYER_COUNT; ++i) {
         uint8_t cidx = get_layer_rgb_color(i);
@@ -235,13 +242,19 @@ static void refresh_user_rgb_segments(void) {
         user_rgb_segments[i][0].val = (uint8_t)scaled_val;
     }
 
-    uint8_t cur_layer = get_highest_layer(layer_state | default_layer_state);
+    uint8_t cur_layer = get_highest_layer(effective_state);
     uint8_t raw_val   = contrast_mode_active ? ((cur_layer == 0 || cur_layer == 1) ? 85 : 255) : base_bri;
     if (lock_blink_off_phase) {
         raw_val = 0;
     }
     rgblight_sethsv_noeeprom(rgblight_get_hue(), rgblight_get_sat(), raw_val);
-    rgblight_set();
+    if (flush_now) {
+        rgblight_set();
+    }
+}
+
+static void refresh_user_rgb_segments(void) {
+    refresh_user_rgb_segments_for_state(layer_state | default_layer_state, true);
 }
 
 static void fast_clear_lock_leds(void) {
@@ -249,6 +262,15 @@ static void fast_clear_lock_leds(void) {
         return;
     }
     led_t leds = host_keyboard_led_state();
+    if (!leds.caps_lock && !leds.scroll_lock) {
+        return;
+    }
+    uint8_t saved_mods = get_mods();
+    if (saved_mods) {
+        del_mods(saved_mods);
+    }
+    clear_weak_mods();
+    send_keyboard_report();
     if (leds.caps_lock) {
         register_code(KC_CAPS_LOCK);
         wait_ms(2);
@@ -258,6 +280,10 @@ static void fast_clear_lock_leds(void) {
         register_code(KC_SCROLL_LOCK);
         wait_ms(2);
         unregister_code(KC_SCROLL_LOCK);
+    }
+    if (saved_mods) {
+        add_mods(saved_mods);
+        send_keyboard_report();
     }
 }
 
@@ -395,13 +421,16 @@ void keyboard_post_init_user(void) {
 
 layer_state_t default_layer_state_set_user(layer_state_t state) {
     sync_pointing_mode_for_state(layer_state | state);
+    if (is_keyboard_master() && contrast_mode_active) {
+        refresh_user_rgb_segments_for_state(layer_state | state, false);
+    }
     return state;
 }
 
 layer_state_t layer_state_set_user(layer_state_t state) {
     sync_pointing_mode_for_state(state | default_layer_state);
     if (is_keyboard_master() && contrast_mode_active) {
-        refresh_user_rgb_segments();
+        refresh_user_rgb_segments_for_state(state | default_layer_state, false);
     }
     return state;
 }
@@ -423,9 +452,16 @@ void housekeeping_task_user(void) {
     }
 
     if (f18_active && !f18_fired && timer_elapsed(f18_timer) >= F18_LOCK_HOLD_MS) {
-        f18_fired = true;
+        f18_fired          = true;
+        uint8_t saved_mods = get_mods();
+        if (saved_mods) {
+            del_mods(saved_mods);
+        }
         clear_weak_mods();
         tap_code16(G(KC_L));
+        if (saved_mods) {
+            add_mods(saved_mods);
+        }
     }
 
     uint8_t cur_entropy_bri = get_led_rgb_brightness();
@@ -517,9 +553,11 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (record->event.pressed && !is_lt2 && !is_rt2) {
         if (lt2_phys_held) {
             lt2_used_with_other_key = true;
+            lt2_lead_clean          = false;
         }
         if (rt2_thumb_armed) {
             rt2_used_with_other_key = true;
+            rt2_lead_clean          = false;
         }
         if (active_effective_mode == POINTING_MODE_TAB_CRUISER && keycode != EH_USR3) {
             tab_cruiser_key_suppress_ms = timer_read();
@@ -550,19 +588,38 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
     /* Dual-thumb chords (LT2 <-> RT2) & instant spring-latch TT(1) / TT(3) */
     if (is_lt2) {
         if (record->event.pressed) {
-            if (rt2_thumb_armed) {
+            if (rt2_thumb_armed && !rt2_chord_mo5) {
                 rt2_used_with_other_key = true;
                 lt2_chord_mo4           = true;
                 lt2_phys_held           = true;
-                layer_on(4);
+                lt2_was_tt1             = false;
+                lt2_lead_clean          = false;
+                if (rt2_lead_clean && (rt2_was_tt3 || timer_elapsed(rt2_press_timer) < 350)) {
+                    rt2_lead_clean        = false;
+                    rt2_was_tt3           = false;
+                    layer_state_t base_st = (get_highest_layer(rt2_lead_prev_state | default_layer_state) < 4) ? rt2_lead_prev_state : 0;
+                    layer_state_set(base_st | ((layer_state_t)1 << 4));
+                } else {
+                    rt2_lead_clean = false;
+                    layer_on(4);
+                }
                 return false;
             }
-            uint8_t  cur_layer = get_highest_layer(layer_state | default_layer_state);
-            uint16_t raw_kc    = keymap_key_to_keycode(layer_switch_get_layer(record->event.key), record->event.key);
+            layer_state_t   prev_st       = layer_state;
+            bool            prev_sticky   = sticky_override_active;
+            pointing_mode_t prev_sticky_m = sticky_override_mode;
+            uint8_t         prev_sticky_l = sticky_override_layer;
+            uint8_t         cur_layer     = get_highest_layer(layer_state | default_layer_state);
+            uint16_t        raw_kc        = keymap_key_to_keycode(layer_switch_get_layer(record->event.key), record->event.key);
             if (raw_kc == TT(1)) {
                 lt2_phys_held           = true;
                 lt2_was_tt1             = (cur_layer == 0) && !layer_state_is(1);
                 lt2_used_with_other_key = false;
+                lt2_lead_clean          = true;
+                lt2_lead_prev_state     = prev_st;
+                lt2_lead_prev_sticky    = prev_sticky;
+                lt2_lead_prev_sticky_m  = prev_sticky_m;
+                lt2_lead_prev_sticky_l  = prev_sticky_l;
                 lt2_press_timer         = timer_read();
                 layer_on(1);
                 return false;
@@ -570,6 +627,12 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
                 lt2_phys_held           = true;
                 lt2_was_tt1             = false;
                 lt2_used_with_other_key = false;
+                lt2_lead_clean          = true;
+                lt2_lead_prev_state     = prev_st;
+                lt2_lead_prev_sticky    = prev_sticky;
+                lt2_lead_prev_sticky_m  = prev_sticky_m;
+                lt2_lead_prev_sticky_l  = prev_sticky_l;
+                lt2_press_timer         = timer_read();
                 if (!sticky_override_active || sticky_override_layer != 1) {
                     sticky_override_active = false;
                 }
@@ -580,6 +643,7 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
                 return false;
             }
         } else {
+            lt2_lead_clean = false;
             if (lt2_chord_mo4) {
                 lt2_chord_mo4 = false;
                 lt2_phys_held = false;
@@ -602,19 +666,36 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (is_rt2) {
         if (record->event.pressed) {
             uint8_t cur_layer = get_highest_layer(layer_state | default_layer_state);
-            if (lt2_phys_held && cur_layer != 2) {
+            if (lt2_phys_held && !lt2_chord_mo4 && cur_layer != 2) {
                 lt2_used_with_other_key = true;
                 rt2_chord_mo5           = true;
                 rt2_thumb_armed         = true;
-                layer_on(5);
+                rt2_was_tt3             = false;
+                rt2_lead_clean          = false;
+                if (lt2_lead_clean && (lt2_was_tt1 || timer_elapsed(lt2_press_timer) < 350)) {
+                    lt2_lead_clean         = false;
+                    lt2_was_tt1            = false;
+                    sticky_override_active = lt2_lead_prev_sticky;
+                    sticky_override_mode   = lt2_lead_prev_sticky_m;
+                    sticky_override_layer  = lt2_lead_prev_sticky_l;
+                    layer_state_t base_st  = (get_highest_layer(lt2_lead_prev_state | default_layer_state) < 5) ? lt2_lead_prev_state : 0;
+                    layer_state_set(base_st | ((layer_state_t)1 << 5));
+                    sync_pointing_mode_for_state(layer_state | default_layer_state);
+                } else {
+                    lt2_lead_clean = false;
+                    layer_on(5);
+                }
                 return false;
             }
             if (cur_layer != 2) {
-                uint16_t raw_kc = keymap_key_to_keycode(layer_switch_get_layer(record->event.key), record->event.key);
+                layer_state_t prev_st = layer_state;
+                uint16_t      raw_kc  = keymap_key_to_keycode(layer_switch_get_layer(record->event.key), record->event.key);
                 if (raw_kc == TT(3)) {
                     rt2_thumb_armed         = true;
                     rt2_was_tt3             = !layer_state_is(3);
                     rt2_used_with_other_key = false;
+                    rt2_lead_clean          = true;
+                    rt2_lead_prev_state     = prev_st;
                     rt2_press_timer         = timer_read();
                     layer_on(3);
                     return false;
@@ -622,6 +703,9 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
                     rt2_thumb_armed         = true;
                     rt2_was_tt3             = false;
                     rt2_used_with_other_key = false;
+                    rt2_lead_clean          = true;
+                    rt2_lead_prev_state     = prev_st;
+                    rt2_press_timer         = timer_read();
                     if (!sticky_override_active || sticky_override_layer != 3) {
                         sticky_override_active = false;
                     }
@@ -633,10 +717,12 @@ bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
                 } else if (raw_kc == KC_NO) {
                     rt2_thumb_armed = true;
                     rt2_was_tt3     = false;
+                    rt2_lead_clean  = false;
                     return false;
                 }
             }
         } else {
+            rt2_lead_clean = false;
             if (rt2_chord_mo5) {
                 rt2_chord_mo5   = false;
                 rt2_thumb_armed = false;
